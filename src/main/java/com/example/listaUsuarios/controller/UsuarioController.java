@@ -26,7 +26,6 @@ public class UsuarioController {
         this.usuarioService = usuarioService;
     }
 
-
     @GetMapping("{codigo}")
     public Optional<Usuario> consultaUsuario(@PathVariable Long codigo){
         return usuarioRepositorio.findById(codigo);
