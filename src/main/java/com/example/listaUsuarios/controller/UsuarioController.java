@@ -1,10 +1,13 @@
 package com.example.listaUsuarios.controller;
 
+import com.example.listaUsuarios.dto.UsuarioDto;
 import com.example.listaUsuarios.model.Usuario;
 import com.example.listaUsuarios.repository.UsuarioRepositorio;
 import com.example.listaUsuarios.service.UsuarioService;
+import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.File;
@@ -27,8 +30,18 @@ public class UsuarioController {
     }
 
     @GetMapping("{codigo}")
-    public Optional<Usuario> consultaUsuario(@PathVariable Long codigo){
-        return usuarioRepositorio.findById(codigo);
+    @ApiOperation(value = "Consulta usuario pelo ID")
+    public ResponseEntity<UsuarioDto> consultaUsuario(@PathVariable Long codigo){
+
+        Optional<Usuario> opt = usuarioRepositorio.findById(codigo);
+
+        if(opt.isPresent()){
+            Usuario usuario = opt.get();
+            UsuarioDto usuarioDTO = new UsuarioDto(/*usuario.getId(), usuario.getNome(), usuario.getEmail()*/);
+            return ResponseEntity.ok(usuarioDTO);
+        }else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @GetMapping
