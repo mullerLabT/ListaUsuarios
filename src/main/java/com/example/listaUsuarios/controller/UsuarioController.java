@@ -1,5 +1,6 @@
 package com.example.listaUsuarios.controller;
 
+import com.example.listaUsuarios.business.UsuarioConverter;
 import com.example.listaUsuarios.dto.UsuarioDto;
 import com.example.listaUsuarios.model.Usuario;
 import com.example.listaUsuarios.repository.UsuarioRepositorio;
@@ -7,6 +8,8 @@ import com.example.listaUsuarios.service.UsuarioService;
 import io.swagger.annotations.ApiOperation;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.dao.EmptyResultDataAccessException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -33,50 +36,83 @@ public class UsuarioController {
     @ApiOperation(value = "Consulta usuario pelo ID")
     public ResponseEntity<UsuarioDto> consultaUsuario(@PathVariable Long codigo){
 
-        Optional<Usuario> opt = usuarioRepositorio.findById(codigo);
+        Optional<Usuario> optionalUsuario = usuarioRepositorio.findById(codigo);
 
-        if(opt.isPresent()){
-            Usuario usuario = opt.get();
-            UsuarioDto usuarioDTO = new UsuarioDto(/*usuario.getId(), usuario.getNome(), usuario.getEmail()*/);
-            return ResponseEntity.ok(usuarioDTO);
-        }else {
+        if (optionalUsuario.isPresent()) {
+            Usuario usuario = optionalUsuario.get();
+            UsuarioDto dto = UsuarioConverter.toDto(usuario);
+            return ResponseEntity.ok(dto);
+        } else {
             return ResponseEntity.notFound().build();
         }
     }
 
     @GetMapping
-    public List<Usuario> listaFiltroUsuario(@RequestParam("filtro") String filtro){
-        return usuarioRepositorio.findByNomeCompletoContainingIgnoreCaseOrNomeSocialContainingIgnoreCaseOrEmailContainingIgnoreCase(filtro, filtro, filtro);
+    @ApiOperation(value="Lista usuários por filtro")
+    public ResponseEntity<List<Usuario>> listaFiltroUsuario(@RequestParam("filtro") String filtro){
+        List<Usuario> usuarios = usuarioRepositorio.findByNomeCompletoContainingIgnoreCaseOrNomeSocialContainingIgnoreCaseOrEmailContainingIgnoreCase(filtro, filtro, filtro);
+
+        if (usuarios.isEmpty()) {
+            return ResponseEntity.noContent().build();
+        } else {
+            return ResponseEntity.ok(usuarios);
+        }
     }
 
     @PostMapping
-    public void incluirUsuario(@RequestBody Usuario usuario){
-        usuarioRepositorio.save(usuario);
+    @ApiOperation(value="Cria usuário")
+    public ResponseEntity<Usuario> incluirUsuario(@RequestBody Usuario usuario){
+        try {
+            Usuario novoUsuario = usuarioRepositorio.save(usuario);
+            return ResponseEntity.status(HttpStatus.CREATED).body(novoUsuario);
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PutMapping
-    public void alterarUsuario(@RequestBody Usuario usuario){
-        usuarioRepositorio.save(usuario);
+    @ApiOperation(value="Altera um usuário")
+    public ResponseEntity<Usuario> alterarUsuario(@RequestBody Usuario usuario){
+        //verifica usuario
+        Optional<Usuario> usuarioConsulta = usuarioRepositorio.findById(usuario.getCodigo());
+
+        if (usuarioConsulta.isPresent()) {
+            try {
+                Usuario usuarioAtualizado = usuarioRepositorio.save(usuario);
+                return ResponseEntity.ok(usuarioAtualizado);
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+            }
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @DeleteMapping("/{codigo}")
-    public void excluiUsuario(@PathVariable Long codigo){
-        usuarioRepositorio.deleteById(codigo);
+    @ApiOperation(value="Deleta usuário")
+    public ResponseEntity<?> excluiUsuario(@PathVariable Long codigo){
+        try {
+            usuarioRepositorio.deleteById(codigo);
+            return ResponseEntity.noContent().build();
+        } catch (EmptyResultDataAccessException e) { //para não encontrado 404
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
     }
 
     @PostMapping("/carregaCSV")
-    public void processCsvFile() {
+    @ApiOperation(value="Carrega o arquivo CSV no Postgre")
+    public ResponseEntity<?> processCsvFile() {
         String filePath = "usuarios.csv";
-        ClassPathResource resource = new ClassPathResource(filePath);
-        File file;
         try {
-            file = resource.getFile();
+            ClassPathResource resource = new ClassPathResource(filePath);
+            File file = resource.getFile();
+            usuarioService.processarArquivoCsv(file.getAbsolutePath());
+            return ResponseEntity.ok().build();
         } catch (IOException e) {
             e.printStackTrace();
-            return;
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
-        usuarioService.processarArquivoCsv(file.getAbsolutePath());
-
     }
-
 }
